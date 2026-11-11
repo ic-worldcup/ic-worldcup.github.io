@@ -447,6 +447,30 @@ nav.tabs.more{-webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);mas
 .imp-acts{padding:10px 14px;border-top:1px solid var(--line)}
 ul.adm.boxed{border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .fpick input{flex:1}
+
+/* live matches */
+.live{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--loss-ink);white-space:nowrap}
+.live i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--loss);animation:livepulse 1.6s ease-out infinite}
+.live b{color:var(--ink);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.live b:empty{display:none}
+@keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(194,59,54,.6)}70%{box-shadow:0 0 0 7px rgba(194,59,54,0)}100%{box-shadow:0 0 0 0 rgba(194,59,54,0)}}
+@media (prefers-reduced-motion:reduce){.live i{animation:none}}
+.score.is-live{box-shadow:inset 0 -2px 0 var(--loss)}
+.hero .score.is-live{box-shadow:inset 0 -3px 0 var(--loss)}
+.hero-st{display:flex;justify-content:center;margin-top:12px}
+.hero-st .live{font-size:12px}
+.hero-st .ft{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.panel.live-now{box-shadow:inset 0 3px 0 var(--loss)}
+.panel.ctl{box-shadow:inset 0 3px 0 var(--gold)}
+.ctl .hint{margin:0 0 14px}
+.ctl-goals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.btn.big{padding:13px 18px;font-size:15px;border-radius:12px;min-height:50px;line-height:1.25}
+.ctl-goals .btn{white-space:normal}
+.ctl-list{list-style:none;margin:14px 0 0;padding:0}
+.ctl-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+.ctl-list li b{display:inline-block;min-width:38px;font-variant-numeric:tabular-nums}
+.ctl-end{margin-top:16px;justify-content:space-between}
+.ctl-form .sub-h{margin:0 0 12px;display:flex;align-items:center;gap:8px}
 </style>
 <script src="config.js"></script>
 </head>
@@ -515,6 +539,18 @@ function uid(p){return p+Date.now().toString(36)+Math.random().toString(36).slic
 function hasEx(){return S.matches.some(function(m){return m.example})}
 function mVenue(m){var e=evOn(m.date);return m.venue||(e&&e.venue)||'Venue TBC'}
 function compTag(m){var wc=/^World Cup/.test(m.comp||'');return '<span class="tag'+(wc?' wc':'')+'">'+esc(m.comp||'Friendly')+'</span>'+(m.example?' <span class="tag ex">Example</span>':'')}
+/* live matches: status 'live' while it's being played, ko = kick-off time in ms so the clock can run */
+function isLive(m){return m.status==='live'}
+function hasScore(m){return m.status==='played'||m.status==='live'}
+function liveNow(){return S.matches.filter(isLive).sort(byDate)}
+function liveMin(m){if(!m.ko)return null;var n=Math.floor((Date.now()-m.ko)/6e4)+1;return n<1?1:n}
+function minTxt(n){return n!=null&&n<=120?n+'′':''}
+function liveTag(m){return '<span class="live"'+(m.ko?' data-ko="'+(+m.ko)+'"':'')+'><i aria-hidden="true"></i>Live<b>'+minTxt(liveMin(m))+'</b></span>'}
+function mById(id){var c=S.matches.find(function(x){return x.id===id});if(!c)throw {code:'gone'};return c}
+function gfp(g){return JSON.stringify([g.side,g.player||'',g.min==null||g.min===''?null:+g.min,!!g.og,g.assist||''])}
+function addName(m,side,name){m.lineups=m.lineups||{home:[],away:[]};var L=m.lineups[side]=m.lineups[side]||[],k=nk(name);if(k&&!L.some(function(n){return nk(n)===k}))L.push(name)}
+function hereNames(m,side){var ev=evOn(m.date),q=ev?squad(ev.id,sideSoc(m,side)):null;if(!q)return [];return q.players.filter(function(p){return q.here&&q.here[p.id]}).sort(function(a,b){return (posRank(a.pos)===0?0:1)-(posRank(b.pos)===0?0:1)}).map(full)}
+function mergeHere(m,side){hereNames(m,side).forEach(function(n){addName(m,side,n)})}
 
 /* names and positions */
 function clean(s,max){return String(s==null?'':s).replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,max||40)}
@@ -607,10 +643,10 @@ function stages(){
 }
 function exNote(){if(!hasEx())return '';return '<div class="note"><span>These matches are examples with made-up players, so you can see how the site works. Real results will replace them.</span>'+(CAN?'<a class="more" href="#admin">Remove examples</a>':'')+'</div>'}
 function fx(m,ev){
-  var H=soc(m.home),A=soc(m.away),done=m.status==='played',sc=score(m);
-  var mid=done?'<span class="score">'+sc[0]+'<span class="dash">–</span>'+sc[1]+'</span>':'<span class="score ko">'+esc(m.time||'TBC')+'</span>';
-  var meta=ev?(m.example?'<span class="tag ex">Example</span>':'')+(m.venue&&m.venue!==ev.venue?'<span>'+esc(m.venue)+'</span>':''):compTag(m)+'<span>'+esc(mVenue(m))+'</span>';
-  return '<a class="fx" href="#match-'+esc(m.id)+'"><span class="t home"><span class="nm"><span class="full">'+esc(H.name)+'</span><span class="code">'+esc(H.code)+'</span></span>'+flag(H)+'</span>'+mid+
+  var H=soc(m.home),A=soc(m.away),done=hasScore(m),live=isLive(m),sc=score(m);
+  var mid=done?'<span class="score'+(live?' is-live':'')+'">'+sc[0]+'<span class="dash">–</span>'+sc[1]+'</span>':'<span class="score ko">'+esc(m.time||'TBC')+'</span>';
+  var meta=(live?liveTag(m):'')+(ev?(m.example?'<span class="tag ex">Example</span>':'')+(m.venue&&m.venue!==ev.venue?'<span>'+esc(m.venue)+'</span>':''):compTag(m)+'<span>'+esc(mVenue(m))+'</span>');
+  return '<a class="fx'+(live?' is-live':'')+'" href="#match-'+esc(m.id)+'"><span class="t home"><span class="nm"><span class="full">'+esc(H.name)+'</span><span class="code">'+esc(H.code)+'</span></span>'+flag(H)+'</span>'+mid+
     '<span class="t away">'+flag(A)+'<span class="nm"><span class="full">'+esc(A.name)+'</span><span class="code">'+esc(A.code)+'</span></span></span>'+(meta?'<span class="meta">'+meta+'</span>':'')+'</a>';
 }
 function grouped(list,desc){
@@ -633,7 +669,7 @@ function evCard(ev){
   var closeTxt=ev.close?(open?'Squad sign-ups close '+fmtShort(ev.close):'Squad sign-ups have closed'):'';
   return '<section class="panel event" aria-labelledby="ev-title"><div class="ev-head">'+
     '<div class="ev-date" aria-hidden="true"><span>'+esc(d.toLocaleDateString('en-GB',{weekday:'short'}))+'</span><b>'+d.getDate()+'</b><span>'+esc(d.toLocaleDateString('en-GB',{month:'short'}))+'</span></div>'+
-    '<div class="ev-info"><div class="ev-kick">Next up · '+countdown(ev.date)+'</div><h2 id="ev-title">'+esc(ev.name)+'</h2>'+
+    '<div class="ev-info"><div class="ev-kick">'+(fxs.some(isLive)?'Live now':'Next up · '+countdown(ev.date))+'</div><h2 id="ev-title">'+esc(ev.name)+'</h2>'+
     '<div class="ev-meta">'+meta.map(function(x){return '<span>'+esc(x)+'</span>'}).join('')+'</div>'+(ev.note?'<p class="ev-note">'+esc(ev.note)+'</p>':'')+'</div></div>'+
     '<div class="ev-body"><div class="eyebrow">'+socs.length+' societies taking part · '+regd+' squad'+(regd===1?'':'s')+' registered</div>'+
     '<div class="chips">'+socs.map(function(s){var n=sqCount(ev.id,s.id);return '<a class="chip" href="#soc-'+esc(s.id)+'">'+flag(s)+'<span>'+esc(s.name)+'</span>'+(n?'<span class="cnt" title="'+n+' players registered">'+n+'</span>':'')+'</a>'}).join('')+'</div>'+
@@ -651,7 +687,8 @@ function vResults(){
     t.map(function(r,i){return '<tr'+(i===0&&r.P?' class="top"':'')+'><td class="pos">'+(i+1)+'</td><td class="l"><span class="team">'+flag(r.s)+'<a href="#soc-'+esc(r.s.id)+'">'+esc(r.s.name)+'</a></span></td><td>'+r.P+'</td><td>'+(r.GD>0?'+':'')+r.GD+'</td><td class="pts">'+r.Pts+'</td></tr>'}).join('')+'</tbody></table></div>';
   var side='<aside class="stack"><section class="panel"><div class="panel-h"><h2>Table</h2><a class="more" href="#table">Full table</a></div>'+mini+'</section>'+
     '<section class="panel"><div class="panel-h"><h2>Golden Boot</h2><a class="more" href="#stats">All stats</a></div>'+pBoard('g',5,ppl)+'</section></aside>';
-  return '<div class="stack">'+(ev?evCard(ev):'')+stages()+'<div class="grid">'+main+side+'</div></div>';
+  var lv=liveNow(),lvP=lv.length?'<section class="panel live-now"><div class="panel-h"><h2>Live now</h2><span class="eyebrow">Updates automatically</span></div>'+lv.map(function(m){return fx(m)}).join('')+'</section>':'';
+  return '<div class="stack">'+lvP+(ev?evCard(ev):'')+stages()+'<div class="grid">'+main+side+'</div></div>';
 }
 function vTable(){
   var t=table();
@@ -704,22 +741,24 @@ function sqLabel(L){var ex=L.filter(function(p){return p.ex}).length,n=L.length-
 function vMatch(id){
   var m=S.matches.find(function(x){return x.id===id});
   if(!m)return '<a class="back" href="#results">← All results</a><p class="empty">That match isn’t on record any more.</p>';
-  var H=soc(m.home),A=soc(m.away),done=m.status==='played',sc=score(m),goals=(m.goals||[]).slice().sort(function(a,b){return (a.min==null?999:a.min)-(b.min==null?999:b.min)});
+  var H=soc(m.home),A=soc(m.away),live=isLive(m),done=hasScore(m),sc=score(m),goals=(m.goals||[]).slice().sort(function(a,b){return (a.min==null?999:a.min)-(b.min==null?999:b.min)});
   function gl(side){var by={},order=[];goals.filter(function(g){return g.side===side}).forEach(function(g){var n=g.player+(g.og?' (OG)':'');if(!by[n]){by[n]=[];order.push(n)}by[n].push(g.min!=null?g.min+'′':'')});return order.map(function(n){return '<div>'+esc(n)+' '+by[n].filter(Boolean).join(', ')+'</div>'}).join('')}
   var hero='<section class="panel"><div class="hero"><div class="top">'+compTag(m)+'<span>'+fmtD(m.date)+(m.time?' · '+esc(m.time):'')+' · '+esc(mVenue(m))+'</span></div>'+
     '<div class="row"><div class="side">'+flag(H,'lg')+'<a href="#soc-'+esc(H.id)+'">'+esc(H.name)+'</a></div>'+
-    (done?'<span class="score">'+sc[0]+'<span class="dash">–</span>'+sc[1]+'</span>':'<span class="score ko">'+esc(m.time||'TBC')+'</span>')+
+    (done?'<span class="score'+(live?' is-live':'')+'">'+sc[0]+'<span class="dash">–</span>'+sc[1]+'</span>':'<span class="score ko">'+esc(m.time||'TBC')+'</span>')+
     '<div class="side">'+flag(A,'lg')+'<a href="#soc-'+esc(A.id)+'">'+esc(A.name)+'</a></div></div>'+
+    (live?'<div class="hero-st">'+liveTag(m)+'</div>':m.status==='played'?'<div class="hero-st"><span class="ft">Full time</span></div>':'')+
     (done&&goals.length?'<div class="scorers"><div class="h">'+gl('home')+'</div><div class="mid"></div><div>'+gl('away')+'</div></div>':'')+'</div>';
   var an=m.anthem||{},cult=[];
   if(an.home)cult.push(['Anthem · '+H.code,an.home]);if(an.away)cult.push(['Anthem · '+A.code,an.away]);if(m.exchange)cult.push(['Exchange',m.exchange]);
   if(m.motm&&m.motm.player)cult.push(['Player of the match',m.motm.player+' ('+soc(sideSoc(m,m.motm.side)).code+')']);
   hero+=(cult.length?'<dl class="culture">'+cult.map(function(c){return '<div><dt>'+esc(c[0])+'</dt><dd>'+esc(c[1])+'</dd></div>'}).join('')+'</dl>':'')+'</section>';
-  if(!done)return '<a class="back" href="#results">← All matches</a><div class="stack">'+hero+'<p class="note">Teamsheets, goals and the pre-match exchange will appear here after the game.</p></div>';
+  var ctl=CAN?liveCtl(m):'';
+  if(!done)return '<a class="back" href="#results">← All matches</a><div class="stack">'+hero+ctl+'<p class="note">Goals and teamsheets will show here once the match kicks off.</p></div>';
   var rh=0,ra=0;
   var tl='<section class="panel"><div class="panel-h"><h2>Goals</h2></div>'+(goals.length?'<ol class="tl">'+goals.map(function(g){if(g.side==='home')rh++;else ra++;
     var txt='<span class="gn">'+esc(g.player)+(g.og?' <span class="b">OG</span>':'')+' <span class="rs">'+rh+'–'+ra+'</span></span>'+(g.assist&&!g.og?'<span class="as">Assist: '+esc(g.assist)+'</span>':'');
-    return '<li><span class="h">'+(g.side==='home'?txt:'')+'</span><span class="mn">'+(g.min!=null?g.min+'′':'–')+'</span><span class="a">'+(g.side==='away'?txt:'')+'</span></li>'}).join('')+'</ol>':'<p class="empty">Goalless.</p>')+'</section>';
+    return '<li><span class="h">'+(g.side==='home'?txt:'')+'</span><span class="mn">'+(g.min!=null?g.min+'′':'–')+'</span><span class="a">'+(g.side==='away'?txt:'')+'</span></li>'}).join('')+'</ol>':'<p class="empty">'+(live?'No goals yet.':'Goalless.')+'</p>')+'</section>';
   function sheet(side){
     var lu=(m.lineups||{})[side]||[],s=soc(sideSoc(m,side)),gs=m.goals||[];
     function li(n){var G=gs.filter(function(g){return g.side===side&&!g.og&&g.player===n}).length,As=gs.filter(function(g){return g.side===side&&!g.og&&g.assist===n}).length,O=gs.filter(function(g){return g.og&&g.side===other(side)&&g.player===n}).length,b=[];
@@ -729,7 +768,49 @@ function vMatch(id){
     return '<div class="sheet"><h3>'+flag(s)+esc(s.name)+'</h3>'+(lu.length?'<div class="lbl">Starting VII</div><ul>'+lu.slice(0,7).map(li).join('')+'</ul>'+(lu.length>7?'<div class="lbl">Subs</div><ul>'+lu.slice(7).map(li).join('')+'</ul>':''):'<p class="hint">No teamsheet recorded.</p>')+'</div>';
   }
   var sheets='<section class="panel"><div class="panel-h"><h2>Teamsheets</h2></div><div class="sheets">'+sheet('home')+sheet('away')+'</div></section>';
-  return '<a class="back" href="#results">← All results</a><div class="stack">'+hero+tl+sheets+'</div>';
+  return '<a class="back" href="#results">← All results</a><div class="stack">'+hero+ctl+tl+sheets+'</div>';
+}
+/* organisers run a match from its page: kick off, add goals as they happen, full time */
+var LV=null;
+function lvPool(m,side){
+  var seen={},main=[],rest=[];function add(L,n){var k=nk(n);if(k&&!seen[k]){seen[k]=1;L.push(n)}}
+  ((m.lineups||{})[side]||[]).forEach(function(n){add(main,n)});hereNames(m,side).forEach(function(n){add(main,n)});
+  var ev=evOn(m.date),q=ev?squad(ev.id,sideSoc(m,side)):null;
+  if(q)q.players.map(full).forEach(function(n){add(rest,n)});
+  function az(a,b){return a.localeCompare(b)}
+  return {main:main.sort(az),rest:rest.sort(az)};
+}
+function lvOpts(P,cur,skip){
+  function o(n){return '<option value="'+esc(n)+'"'+(n===cur?' selected':'')+'>'+esc(n)+'</option>'}
+  var main=P.main.filter(function(n){return n!==skip}),rest=P.rest.filter(function(n){return n!==skip});
+  if(cur&&cur!=='__other'&&cur!==skip&&main.indexOf(cur)<0&&rest.indexOf(cur)<0)main.push(cur);
+  return main.map(o).join('')+(rest.length?'<optgroup label="Registered, not checked in">'+rest.map(o).join('')+'</optgroup>':'');
+}
+function goalForm(m){
+  var L=LV,s=soc(sideSoc(m,L.side)),P=lvPool(m,L.og?other(L.side):L.side),A=L.og?{main:[],rest:[]}:lvPool(m,L.side),me=L.sel==='__other'?clean(L.other,60):L.sel;
+  return '<div class="ctl-form"><h3 class="sub-h">'+flag(s)+'<span>Goal for '+esc(s.name)+'</span></h3><div class="form-grid">'+
+    '<label>'+(L.og?'Own goal by (other team’s player)':'Scorer')+'<select id="lv-player" data-lv="sel"><option value="">Choose player</option>'+lvOpts(P,L.sel)+'<option value="__other"'+(L.sel==='__other'?' selected':'')+'>Someone not on the list…</option></select></label>'+
+    (L.sel==='__other'?'<label>Their name<input id="lv-other" data-lv="other" value="'+esc(L.other)+'" maxlength="60" autocomplete="off" autocapitalize="words" spellcheck="false"></label>':'')+
+    '<label>Assist<select id="lv-assist" data-lv="assist"'+(L.og?' disabled':'')+'><option value="">None</option>'+lvOpts(A,L.assist,me)+'</select></label>'+
+    '<label>Minute<input type="number" inputmode="numeric" min="0" max="120" id="lv-min" data-lv="min" value="'+esc(L.min)+'"></label>'+
+    '<label class="chk"><input type="checkbox" id="lv-og" data-lv="og"'+(L.og?' checked':'')+'>Own goal</label>'+
+    '</div><p class="err" id="lv-err" role="alert">'+esc(L.err||'')+'</p><div class="acts"><button type="button" class="btn pri" data-act="lv-addgoal"'+(BUSY?' disabled':'')+'>Add goal</button><button type="button" class="btn" data-act="lv-cancel">Cancel</button></div></div>';
+}
+function liveCtl(m){
+  var id=esc(m.id),dis=BUSY?' disabled':'',H=soc(m.home),A=soc(m.away),h='';
+  if(isLive(m)){
+    var open=LV&&LV.mid===m.id;
+    if(open)h=goalForm(m);
+    else h='<div class="ctl-goals"><button type="button" class="btn pri big" data-act="lv-goal" data-side="home" data-id="'+id+'"'+dis+'>+ Goal '+esc(H.name)+'</button><button type="button" class="btn pri big" data-act="lv-goal" data-side="away" data-id="'+id+'"'+dis+'>+ Goal '+esc(A.name)+'</button></div>';
+    var gs=(m.goals||[]).slice().sort(function(a,b){return (a.min==null?999:a.min)-(b.min==null?999:b.min)});
+    if(gs.length)h+='<ul class="ctl-list">'+gs.map(function(g){var fp=gfp(g),pk='lg-'+m.id+'|'+fp;return '<li><span><b>'+(g.min!=null?g.min+'′':'–')+'</b>'+esc(g.player)+(g.og?' (OG)':'')+' · '+esc(soc(sideSoc(m,g.side)).code)+'</span><button type="button" class="linkbtn" data-act="lv-rmgoal" data-id="'+id+'" data-fp="'+esc(fp)+'">'+(PEND===pk?'Confirm remove':'Remove')+'</button></li>'}).join('')+'</ul>';
+    if(!open)h+='<div class="acts ctl-end"><button type="button" class="btn'+(PEND==='ft-'+m.id?' warn':'')+'" data-act="lv-ft" data-id="'+id+'"'+dis+'>'+(PEND==='ft-'+m.id?'Confirm full time':'Full time')+'</button>'+(gs.length?'':'<button type="button" class="linkbtn" data-act="lv-unko" data-id="'+id+'">'+(PEND==='uk-'+m.id?'Confirm undo':'Undo kick-off')+'</button>')+'</div>';
+  }else if(m.status==='played'){
+    h='<p class="hint">Full time. Add the player of the match, anthems or any fixes in the full editor.</p><div class="acts"><button type="button" class="btn" data-act="lv-edit" data-id="'+id+'">Edit match</button>'+(m.ko?'<button type="button" class="linkbtn" data-act="lv-reopen" data-id="'+id+'">'+(PEND==='ro-'+m.id?'Confirm: back to live':'Undo full time')+'</button>':'')+'</div>';
+  }else{
+    h='<p class="hint">Press Kick off when the game starts. Everyone sees it as live, with the score and a running clock.</p><div class="acts"><button type="button" class="btn pri big" data-act="lv-ko" data-id="'+id+'"'+dis+'>Kick off</button><button type="button" class="btn" data-act="lv-edit" data-id="'+id+'">Edit details</button></div>';
+  }
+  return '<section class="panel ctl" aria-label="Run this match"><div class="panel-h"><h2>Run this match</h2><span class="eyebrow">Only organisers see this</span></div><div class="ed">'+h+'</div></section>';
 }
 
 /* ---------- squad sign-up ---------- */
@@ -963,7 +1044,7 @@ function vAdmin(){
     '<section class="panel"><div class="panel-h"><h2>Events</h2><button class="btn sm" data-act="ev-new">New event</button></div>'+(EVD?evForm():'')+
     (evs.length?'<ul class="adm">'+evs.map(function(e){var n=evSocs(e).length,p=PEND==='e-'+e.id;return '<li><span class="what"><b>'+esc(e.name)+'</b><span class="eyebrow">'+esc(fmtD(e.date))+' · '+n+' societ'+(n===1?'y':'ies')+(e.close?' · sign-ups close '+fmtShort(e.close):'')+'</span></span><span class="acts"><button class="btn sm" data-act="ev-fixture" data-id="'+esc(e.id)+'">Add fixture</button><button class="btn sm" data-act="ev-edit" data-id="'+esc(e.id)+'">Edit</button><button class="btn sm '+(p?'warn':'danger')+'" data-act="ev-del" data-id="'+esc(e.id)+'">'+(p?'Confirm delete':'Delete')+'</button></span></li>'}).join('')+'</ul>':(EVD?'':'<p class="empty">No events yet. Add one to feature it on the home page.</p>'))+'</section>'+
     '<section class="panel"><div class="panel-h"><h2>Matches</h2><div class="acts"><button class="btn pri" data-act="new">New match</button>'+(hasEx()?'<button class="btn'+(PEND==='__ex'?' warn':'')+'" data-act="clear-ex">'+(PEND==='__ex'?'Confirm: remove examples':'Remove example data')+'</button>':'')+'</div></div>'+
-    (list.length?'<ul class="adm">'+list.map(function(m){var sc=score(m);return '<li><span class="what">'+fmtD(m.date)+' · '+esc(soc(m.home).name)+' '+(m.status==='played'?sc[0]+'–'+sc[1]:'v')+' '+esc(soc(m.away).name)+(m.example?' <span class="tag ex">Example</span>':'')+'</span><span class="acts"><button class="btn sm" data-act="edit" data-id="'+esc(m.id)+'">Edit</button><button class="btn sm '+(PEND===m.id?'warn':'danger')+'" data-act="del" data-id="'+esc(m.id)+'">'+(PEND===m.id?'Confirm delete':'Delete')+'</button></span></li>'}).join('')+'</ul>':'<p class="empty">No matches yet. Add the first fixture.</p>')+'</section>'+
+    (list.length?'<ul class="adm">'+list.map(function(m){var sc=score(m);return '<li><span class="what">'+fmtD(m.date)+(m.time?' '+esc(m.time):'')+' · '+esc(soc(m.home).name)+' '+(hasScore(m)?sc[0]+'–'+sc[1]:'v')+' '+esc(soc(m.away).name)+(isLive(m)?' '+liveTag(m):'')+(m.example?' <span class="tag ex">Example</span>':'')+'</span><span class="acts"><a class="btn sm" href="#match-'+esc(m.id)+'">Open</a><button class="btn sm" data-act="edit" data-id="'+esc(m.id)+'">Edit</button><button class="btn sm '+(PEND===m.id?'warn':'danger')+'" data-act="del" data-id="'+esc(m.id)+'">'+(PEND===m.id?'Confirm delete':'Delete')+'</button></span></li>'}).join('')+'</ul>':'<p class="empty">No matches yet. Add the first fixture.</p>')+'</section>'+
     '<section class="panel"><div class="panel-h"><h2>Societies</h2><button class="btn sm" data-act="soc-new">Add society</button></div>'+(SED?socForm():'')+
     '<ul class="adm">'+S.societies.map(function(s){var c=counts[s.id]||0,busy=c||sqd[s.id];return '<li><span class="what">'+flag(s)+'<b>'+esc(s.name)+'</b> <span class="tag">'+esc(s.code)+'</span> <span class="eyebrow">'+c+' match'+(c===1?'':'es')+(sqd[s.id]?' · has a squad':'')+'</span></span><span class="acts"><button class="btn sm" data-act="soc-edit" data-id="'+esc(s.id)+'">Edit</button>'+(busy?'':'<button class="btn sm '+(PEND==='s-'+s.id?'warn':'danger')+'" data-act="soc-del" data-id="'+esc(s.id)+'">'+(PEND==='s-'+s.id?'Confirm delete':'Delete')+'</button>')+'</span></li>'}).join('')+'</ul></section>'+organisersPanel()+'</div>';
 }
@@ -985,9 +1066,9 @@ function editor(){
     '<label>Home<select id="f-home" data-f="home" data-rr="1">'+opts(so,e.home,'Choose society')+'</select></label>'+
     '<label>Away<select id="f-away" data-f="away" data-rr="1">'+opts(so,e.away,'Choose society')+'</select></label>'+
     '<label>Competition<select id="f-comp" data-f="comp">'+opts(COMPS.map(function(c){return [c,c]}),e.comp)+'</select></label>'+
-    '<label>Status<select id="f-status" data-f="status" data-rr="1">'+opts([['scheduled','Fixture (not played yet)'],['played','Played']],e.status)+'</select></label>'+
+    '<label>Status<select id="f-status" data-f="status" data-rr="1">'+opts([['scheduled','Fixture (not played yet)'],['live','Live (being played now)'],['played','Played (full time)']],e.status)+'</select></label>'+
     '<label class="span2">Venue<input id="f-venue" data-f="venue" list="venues" value="'+esc(e.venue)+'" placeholder="e.g. Chelsea Sports Centre"><datalist id="venues">'+VENUES.map(function(v){return '<option value="'+esc(v)+'">'}).join('')+'</datalist></label>'+
-    '</div>'+(e.status==='played'?playedFields(e):'')+
+    '</div>'+(e.status==='scheduled'&&!e._new?'<p class="hint" style="margin:12px 0 0">To score it as it happens, <a href="#match-'+esc(e.id)+'" data-act="lv-open">open the match page</a> and press Kick off.</p>':'')+(hasScore(e)?playedFields(e):'')+
     '<p class="err" id="ed-err" role="alert"></p><div class="acts"><button class="btn pri" data-act="save-match"'+(BUSY?' disabled':'')+'>Save match</button><button class="btn" data-act="cancel">Cancel</button></div></div></section>';
 }
 function tn(e,s){return e[s]?soc(e[s]).name:(s==='home'?'Home':'Away')}
@@ -1023,7 +1104,7 @@ function motmBox(e){
 function refreshGoals(){var gb=document.getElementById('goals-box'),mb=document.getElementById('motm-box');if(gb)gb.innerHTML=goalsBox(ED);if(mb)mb.innerHTML=motmBox(ED);updScore()}
 function updScore(){var el=document.getElementById('ed-score');if(el)el.innerHTML=edScore(ED)}
 function startEdit(m){
-  var c=JSON.parse(JSON.stringify(m));
+  var c=JSON.parse(JSON.stringify(m));c._g0=JSON.stringify(m.goals||[]);
   c.anthem=c.anthem||{home:'',away:''};c.anthem.home=c.anthem.home||'';c.anthem.away=c.anthem.away||'';
   c.exchange=c.exchange||'';c.lineups=c.lineups||{home:[],away:[]};c.lineups.home=c.lineups.home||[];c.lineups.away=c.lineups.away||[];
   c.goals=(c.goals||[]).map(function(g){return {side:g.side,player:g.player||'',min:g.min==null?'':g.min,assist:g.assist||'',og:!!g.og}});c.motm=c.motm||null;c.time=c.time||'';c.venue=c.venue||'';
@@ -1034,15 +1115,18 @@ function saveMatch(){
   if(!e.date)return fail('Add the match date.');
   if(!e.home||!e.away)return fail('Choose both societies.');
   if(e.home===e.away)return fail('A society can’t play itself. Pick two different societies.');
-  if(e.status==='played'&&e.goals.some(function(g){return !g.player}))return fail('Every goal needs a player. Pick one or remove that goal.');
+  if(hasScore(e)&&e.goals.some(function(g){return !g.player}))return fail('Every goal needs a player. Pick one or remove that goal.');
   var c={id:e.id,date:e.date,time:e.time||'',home:e.home,away:e.away,comp:e.comp||'Friendly',status:e.status,venue:(e.venue||'').trim()};
   if(e.example)c.example=true;
-  if(e.status==='played'){
+  if(hasScore(e)){
     c.anthem={home:e.anthem.home.trim(),away:e.anthem.away.trim()};c.exchange=e.exchange.trim();c.lineups={home:e.lineups.home.slice(),away:e.lineups.away.slice()};
     c.goals=e.goals.map(function(g){return {side:g.side,player:g.player,min:g.min===''?null:+g.min,assist:g.og?'':g.assist,og:!!g.og}});
     c.motm=e.motm&&e.motm.player?e.motm:null;
   }
-  commit(function(){var i=S.matches.findIndex(function(m){return m.id===c.id});if(i>=0)S.matches[i]=c;else S.matches.push(c)},'Match saved',function(){ED=null});
+  if(e.status!=='scheduled'&&e.ko)c.ko=e.ko;if(e.status==='live'&&!c.ko)c.ko=Date.now();
+  /* goals added live (from the match page) since this editor opened would be lost, so stop instead */
+  var g0=e._new?null:e._g0;
+  commit(function(){var i=S.matches.findIndex(function(m){return m.id===c.id});if(i>=0){var now=JSON.stringify(S.matches[i].goals||[]);if(g0!=null&&now!==g0&&now!==JSON.stringify(c.goals||[]))throw {code:'conflict'};S.matches[i]=c}else S.matches.push(c)},'Match saved',function(){ED=null});
 }
 function saveSoc(){
   var e=SED,err=document.getElementById('soc-err');function fail(t){err.textContent=t}
@@ -1111,7 +1195,8 @@ function vMatchday(){
     var lab=st.dirty?['warn','Not saved']:(q&&q.done?['ok','Saved '+q.done]:(d.players.length?['','Not started']:['','No squad']));
     return '<button type="button" class="md-team" data-act="md-open" data-id="'+esc(s.id)+'">'+flag(s,'md')+'<span class="md-tn"><b>'+esc(s.name)+'</b><span class="md-meta">'+n+' of '+d.players.length+' here</span>'+slots(n)+'</span><span class="md-stat '+lab[0]+'">'+esc(lab[1])+'</span></button>';
   }).join('');
-  return '<div class="stack">'+head+(socs.length?'<div class="md-grid">'+cards+'</div>':'<p class="empty">No societies on this event yet.</p>')+'</div>';
+  var fxs=S.matches.filter(function(m){return m.date===ev.date}).sort(byDate),fxP=fxs.length?'<section class="panel"><div class="panel-h"><h2>Matches</h2><span class="eyebrow">Open one to kick off and add goals</span></div>'+fxs.map(function(m){return fx(m,ev)}).join('')+'</section>':'';
+  return '<div class="stack">'+head+(socs.length?'<div class="md-grid">'+cards+'</div>':'<p class="empty">No societies on this event yet.</p>')+fxP+'</div>';
 }
 function mdAddForm(d){
   var a=MD.add,cands=d.players.filter(function(p){return !d.here[p.id]&&!p.sub});
@@ -1227,7 +1312,10 @@ function commit(mutate,msg,after,nextHash){
     BUSY=false;if(after)after();toast(msg);if(!goHash(nextHash))render();
   }).catch(function(err){
     BUSY=false;S=SERVER?clone(SERVER):S;var c=String(err&&err.code||'');
-    if(/permission/.test(c))toast('This account can’t save changes. Sign in with an organiser account.');
+    if(c==='conflict')toast('Someone changed this match while you were editing, so this didn’t save. Press Cancel and open it again.');
+    else if(c==='gone')toast('That match isn’t on the site any more.');
+    else if(c==='has-goals')toast('Remove the goals before undoing the kick-off.');
+    else if(/permission/.test(c))toast('This account can’t save changes. Sign in with an organiser account.');
     else if(/unavailable|network|offline|failed-precondition/.test(c))toast('You look offline, so that didn’t save. Check your connection and try again.');
     else toast('Saving didn’t go through. Try again in a moment.');
     render();
@@ -1249,7 +1337,7 @@ function focusId(id){var el=document.getElementById(id);if(el){el.focus();if(el.
 /* ---------- events ---------- */
 root.addEventListener('click',function(ev){
   var b=ev.target.closest('[data-act]');if(!b)return;var a=b.getAttribute('data-act'),id=b.getAttribute('data-id');
-  if(['del','clear-ex','soc-del','ev-del','r-reset','q-del','md-rmsub','in-del','adm-del'].indexOf(a)<0)PEND=null;
+  if(['del','clear-ex','soc-del','ev-del','r-reset','q-del','md-rmsub','in-del','adm-del','lv-rmgoal','lv-ft','lv-unko','lv-reopen'].indexOf(a)<0)PEND=null;
   if(a==='new'){startEdit({_new:true,id:uid('m'),date:'',time:'14:00',home:'',away:'',comp:'Friendly',status:'scheduled',venue:''});ED._new=true;render();window.scrollTo(0,0)}
   else if(a==='edit'){startEdit(S.matches.find(function(m){return m.id===id}));render();window.scrollTo(0,0)}
   else if(a==='cancel'){ED=null;render()}
@@ -1270,6 +1358,20 @@ root.addEventListener('click',function(ev){
   else if(a==='ev-save')saveEvent();
   else if(a==='ev-del'){if(PEND==='e-'+id)commit(function(){S.events=events().filter(function(e){return e.id!==id});delete squads()[id]},'Event deleted');else{PEND='e-'+id;render()}}
   else if(a==='ev-fixture'){var e1=evById(id);if(e1){startEdit({id:uid('m'),date:e1.date,time:/^\d{1,2}:\d{2}$/.test(e1.time||'')?e1.time:'',home:'',away:'',comp:'Exhibition',status:'scheduled',venue:e1.venue||''});ED._new=true;render();window.scrollTo(0,0)}}
+  /* running a match live */
+  else if(a==='lv-ko'){var t0=Date.now();LV=null;commit(function(){var c=mById(id);c.status='live';c.ko=t0;c.goals=c.goals||[];mergeHere(c,'home');mergeHere(c,'away')},'Kicked off. The match is live')}
+  else if(a==='lv-goal'){var m0=S.matches.find(function(x){return x.id===id});if(!m0)return;LV={mid:id,side:b.getAttribute('data-side')==='away'?'away':'home',sel:'',other:'',assist:'',og:false,min:String(liveMin(m0)||''),err:''};render();focusId('lv-player')}
+  else if(a==='lv-cancel'){LV=null;render()}
+  else if(a==='lv-addgoal'){var L0=LV;if(!L0||BUSY)return;var nm=L0.sel==='__other'?clean(L0.other,60):L0.sel,le=document.getElementById('lv-err');
+    if(!nm){L0.err=L0.sel==='__other'?'Type the scorer’s name.':'Choose who scored.';if(le)le.textContent=L0.err;return}
+    var g0={side:L0.side,player:nm,min:L0.min===''?null:Math.max(0,Math.min(120,parseInt(L0.min,10)||0)),assist:L0.og?'':L0.assist,og:!!L0.og},gm=L0.mid;
+    commit(function(){var c=mById(gm);c.goals=c.goals||[];c.goals.push(g0);addName(c,g0.og?other(g0.side):g0.side,g0.player);if(g0.assist)addName(c,g0.side,g0.assist)},'Goal added: '+nm,function(){LV=null})}
+  else if(a==='lv-rmgoal'){var fpv=b.getAttribute('data-fp'),pk0='lg-'+id+'|'+fpv;if(PEND===pk0)commit(function(){var c=mById(id),k=(c.goals||[]).findIndex(function(x){return gfp(x)===fpv});if(k>=0)c.goals.splice(k,1)},'Goal removed');else{PEND=pk0;render()}}
+  else if(a==='lv-ft'){if(PEND==='ft-'+id)commit(function(){var c=mById(id);c.status='played';mergeHere(c,'home');mergeHere(c,'away')},'Full time. The result is saved');else{PEND='ft-'+id;render()}}
+  else if(a==='lv-unko'){if(PEND==='uk-'+id)commit(function(){var c=mById(id);if((c.goals||[]).length)throw {code:'has-goals'};c.status='scheduled';delete c.ko},'Kick-off undone');else{PEND='uk-'+id;render()}}
+  else if(a==='lv-reopen'){if(PEND==='ro-'+id)commit(function(){var c=mById(id);c.status='live'},'Back to live');else{PEND='ro-'+id;render()}}
+  else if(a==='lv-edit'){var m1=S.matches.find(function(x){return x.id===id});if(m1){startEdit(m1);LV=null;if(!goHash('#admin'))render();window.scrollTo(0,0)}}
+  else if(a==='lv-open'){ED=null}
   /* squad sign-up */
   else if(a==='r-add'){var R=ensureReg();if(R.players.length<MAXP){R.players.push(blankP());render();saveRegDraft();focusId('rp'+(R.players.length-1)+'-first')}}
   else if(a==='r-del'){var R1=ensureReg(),i1=+b.getAttribute('data-i');R1.players.splice(i1,1);if(!R1.players.length)R1.players.push(blankP());render();saveRegDraft();focusId('rp'+Math.min(i1,R1.players.length-1)+'-first')}
@@ -1353,6 +1455,11 @@ function onField(ev){
   if(ds.md==='event'){if(MD.event!==t.value){MD.event=t.value;MD.team='';MD.d=null;MD.dFor='';MD.add=null;sSet('s','icwc-md-ev',MD.event);render()}return}
   if(ds.ma&&MD.add){MD.add[ds.ma]=t.value;return}
   if(ds.mapos&&MD.add){var A=MD.add,h=A.pos.indexOf(ds.mapos)>=0;if(t.checked&&!h)A.pos=posSort(A.pos.concat([ds.mapos]));else if(!t.checked&&h)A.pos=A.pos.filter(function(x){return x!==ds.mapos});t.parentNode.classList.toggle('on',t.checked);return}
+  /* goal form on the match page */
+  if(ds.lv&&LV){var k3=ds.lv;
+    if(k3==='og'){if(LV.og!==t.checked){LV.og=t.checked;LV.sel='';LV.other='';LV.assist='';LV.err='';render();focusId('lv-og')}return}
+    if(k3==='sel'){LV.sel=t.value;LV.err='';if(ev.type==='change'){if(LV.assist===t.value)LV.assist='';render();focusId(t.value==='__other'?'lv-other':'lv-player')}return}
+    LV[k3]=t.value;return}
   if(!ED)return;
   if(ds.f){var f=ds.f;if(f.indexOf('anthem.')===0)ED.anthem[f.slice(7)]=t.value;else ED[f]=t.value;if(ds.rr&&ev.type==='change')render();return}
   if(ds.lu){ED.lineups[ds.lu]=t.value.split('\n').map(function(s){return s.trim()}).filter(Boolean);if(ev.type==='change')refreshGoals();return}
@@ -1372,6 +1479,8 @@ function regLive(i){
   if(!rowErr(REG,i,null)){li.classList.remove('bad');var pe=li.querySelector('.perr');if(pe)pe.remove()}
 }
 root.addEventListener('input',onField);root.addEventListener('change',onField);
+/* keep live clocks ticking without redrawing the page */
+setInterval(function(){var els=root.querySelectorAll('[data-ko]');for(var i=0;i<els.length;i++){var b=els[i].querySelector('b'),n=Math.floor((Date.now()-(+els[i].getAttribute('data-ko')))/6e4)+1,t=minTxt(n<1?1:n);if(b&&b.textContent!==t)b.textContent=t}},15000);
 
 function render(){
   var h=(location.hash||'').slice(1)||'results',active=h,body;
@@ -1402,7 +1511,7 @@ function tabsFit(){
   function upd(){nav.classList.toggle('more',nav.scrollLeft+nav.clientWidth<nav.scrollWidth-4)}
   upd();nav.addEventListener('scroll',upd,{passive:true});
 }
-window.addEventListener('hashchange',function(){PEND=null;render();window.scrollTo(0,0)});
+window.addEventListener('hashchange',function(){PEND=null;LV=null;render();window.scrollTo(0,0)});
 var mdEv=sGet('s','icwc-md-ev');if(typeof mdEv==='string')MD.event=mdEv;
 render();
 boot();
