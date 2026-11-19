@@ -471,6 +471,24 @@ ul.adm.boxed{border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .ctl-list li b{display:inline-block;min-width:38px;font-variant-numeric:tabular-nums}
 .ctl-end{margin-top:16px;justify-content:space-between}
 .ctl-form .sub-h{margin:0 0 12px;display:flex;align-items:center;gap:8px}
+
+/* player of the week */
+.panel.potw{box-shadow:inset 0 3px 0 var(--gold)}
+.potw-in{display:flex;gap:16px;align-items:flex-start;padding:18px 16px}
+.potw-n{font-weight:800;font-size:22px;line-height:1.2;color:var(--ink)}
+.potw-s{font-size:13px;color:var(--muted);margin-top:4px}
+.potw-s a{color:inherit;font-weight:700}
+.crit{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.crit span{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:linear-gradient(180deg,var(--gold-hi),var(--gold));color:var(--navy)}
+.potw-why{margin:10px 0 0;font-size:14px;font-style:italic;color:var(--ink);max-width:60ch}
+.potw-tease{font-size:14px}
+.potw-acts{padding:0 16px 16px}
+.potw-how{padding-bottom:0}
+.lbl-t{font-size:12.5px;font-weight:600;color:var(--muted);margin:14px 0 6px}
+.crit-pick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pw-lb li{grid-template-columns:52px 24px minmax(0,1fr) auto}
+.pw-lb .rk{font-size:12px;font-weight:700;white-space:nowrap}
+.pw-lb .v{font-size:14px;color:var(--gold-text)}
 </style>
 <script src="config.js"></script>
 </head>
@@ -551,6 +569,17 @@ function gfp(g){return JSON.stringify([g.side,g.player||'',g.min==null||g.min===
 function addName(m,side,name){m.lineups=m.lineups||{home:[],away:[]};var L=m.lineups[side]=m.lineups[side]||[],k=nk(name);if(k&&!L.some(function(n){return nk(n)===k}))L.push(name)}
 function hereNames(m,side){var ev=evOn(m.date),q=ev?squad(ev.id,sideSoc(m,side)):null;if(!q)return [];return q.players.filter(function(p){return q.here&&q.here[p.id]}).sort(function(a,b){return (posRank(a.pos)===0?0:1)-(posRank(b.pos)===0?0:1)}).map(full)}
 function mergeHere(m,side){hereNames(m,side).forEach(function(n){addName(m,side,n)})}
+/* Player of the Week: S.potw = [{ev, date, soc, player, crit:['effort',...], why}], one per event night */
+var CRIT=[['effort','Effort'],['sport','Sportsmanship'],['perf','Performance'],['ent','Entertainment']];
+var CRIT_TXT='Judged on effort, sportsmanship, performance and entertainment.';
+function pwDate(a){var e=evById(a.ev);return (e&&e.date)||a.date||''}
+function potws(){return (S.potw||[]).filter(function(a){return a&&a.player}).sort(function(a,b){return pwDate(b).localeCompare(pwDate(a))})}
+function potwFor(eid){return (S.potw||[]).find(function(a){return a&&a.ev===eid})||null}
+function critTxt(c){return CRIT.filter(function(x){return (c||[]).indexOf(x[0])>=0}).map(function(x){return x[1]})}
+function critChips(c){var t=critTxt(c);return t.length?'<span class="crit" aria-label="Stood out for">'+t.map(function(x){return '<span>'+x+'</span>'}).join('')+'</span>':''}
+function dayMon(d){var x=new Date(d+'T12:00:00');return isNaN(x)?'':x.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
+function potwCard(a){var s=soc(a.soc),e=evById(a.ev);
+  return '<div class="potw-in">'+flag(s,'lg')+'<div class="grow1"><div class="potw-n">'+esc(a.player)+'</div><div class="potw-s"><a href="#soc-'+esc(s.id)+'">'+esc(s.full||s.name)+'</a> · '+esc(fmtShort(pwDate(a)))+(e?' · '+esc(e.name):'')+'</div>'+critChips(a.crit)+(a.why?'<p class="potw-why">“'+esc(a.why)+'”</p>':'')+'</div></div>'}
 
 /* names and positions */
 function clean(s,max){return String(s==null?'':s).replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,max||40)}
@@ -608,7 +637,7 @@ function table(){
 /* everyone who has registered or played, merged by society and name */
 function people(){
   var P={},order=[];
-  function k(sid,name,x){var key=sid+'|'+(x?'x|':'')+nk(name);if(!P[key]){P[key]={soc:sid,name:clean(name,80),apps:0,g:0,a:0,motm:0,pos:[],cap:false,reg:0,here:0,ex:!!x};order.push(key)}return P[key]}
+  function k(sid,name,x){var key=sid+'|'+(x?'x|':'')+nk(name);if(!P[key]){P[key]={soc:sid,name:clean(name,80),apps:0,g:0,a:0,motm:0,potw:0,pos:[],cap:false,reg:0,here:0,ex:!!x};order.push(key)}return P[key]}
   var all=squads(),eids=Object.keys(all).sort(function(a,b){var x=evById(a),y=evById(b);return ((x&&x.date)||'').localeCompare((y&&y.date)||'')});
   eids.forEach(function(eid){Object.keys(all[eid]).forEach(function(sid){var q=all[eid][sid];(q.players||[]).forEach(function(p){var o=k(sid,full(p));o.name=full(p);o.reg++;posSort(p.pos).forEach(function(x){if(o.pos.indexOf(x)<0)o.pos.push(x)});o.cap=!!p.cap;if(q.here&&q.here[p.id])o.here++})})});
   played().forEach(function(m){var x=!!m.example;
@@ -616,6 +645,7 @@ function people(){
     (m.goals||[]).forEach(function(g){if(g.og)return;if(g.player)k(sideSoc(m,g.side),g.player,x).g++;if(g.assist)k(sideSoc(m,g.side),g.assist,x).a++});
     if(m.motm&&m.motm.player)k(sideSoc(m,m.motm.side),m.motm.player,x).motm++;
   });
+  potws().forEach(function(a){if(a.soc)k(a.soc,a.player).potw++});
   return order.map(function(x){var o=P[x];o.pos=posSort(o.pos);return o});
 }
 function formPills(f){var l=f.slice(-5);return l.length?'<span class="form" aria-label="Last '+l.length+' results">'+l.map(function(r){return '<i class="'+r+'" title="'+({W:'Win',D:'Draw',L:'Loss'})[r]+'">'+r+'</i>'}).join('')+'</span>':'<span class="mute">–</span>'}
@@ -688,7 +718,9 @@ function vResults(){
   var side='<aside class="stack"><section class="panel"><div class="panel-h"><h2>Table</h2><a class="more" href="#table">Full table</a></div>'+mini+'</section>'+
     '<section class="panel"><div class="panel-h"><h2>Golden Boot</h2><a class="more" href="#stats">All stats</a></div>'+pBoard('g',5,ppl)+'</section></aside>';
   var lv=liveNow(),lvP=lv.length?'<section class="panel live-now"><div class="panel-h"><h2>Live now</h2><span class="eyebrow">Updates automatically</span></div>'+lv.map(function(m){return fx(m)}).join('')+'</section>':'';
-  return '<div class="stack">'+lvP+(ev?evCard(ev):'')+stages()+'<div class="grid">'+main+side+'</div></div>';
+  var pw=potws()[0],pwP=pw?'<section class="panel potw"><div class="panel-h"><h2>Player of the Week</h2><a class="more" href="#stats">All winners</a></div>'+potwCard(pw)+'<div class="foot">'+CRIT_TXT+' Picked by the organisers at the end of each Friday.</div></section>'
+    :(ev?'<section class="panel potw"><div class="panel-h"><h2>Player of the Week</h2><span class="eyebrow">New</span></div><p class="pad potw-tease">Picked by the organisers at the end of each Friday. '+CRIT_TXT+'</p></section>':'');
+  return '<div class="stack">'+lvP+(ev?evCard(ev):'')+pwP+stages()+'<div class="grid">'+main+side+'</div></div>';
 }
 function vTable(){
   var t=table();
@@ -708,12 +740,19 @@ function vStats(){
     '<div class="kpi"><div class="v">'+goals+'</div><div class="s">Goals scored</div></div>'+
     '<div class="kpi"><div class="v">'+(pl.length?(goals/pl.length).toFixed(1):'–')+'</div><div class="s">Goals per match</div></div>'+
     '<div class="kpi"><div class="v">'+bigTxt+'</div><div class="s">Biggest win · '+bigSub+'</div></div></div>'+
-    '<div class="boards">'+
+    pwBoard()+'<div class="boards">'+
     '<section class="panel"><div class="panel-h"><h2>Golden Boot</h2><span class="eyebrow">Goals</span></div>'+pBoard('g',10,ppl)+'</section>'+
     '<section class="panel"><div class="panel-h"><h2>Playmakers</h2><span class="eyebrow">Assists</span></div>'+pBoard('a',10,ppl)+'</section>'+
     '<section class="panel"><div class="panel-h"><h2>Player of the Match</h2><span class="eyebrow">Awards</span></div>'+pBoard('motm',10,ppl)+'</section>'+
     '<section class="panel"><div class="panel-h"><h2>Clean sheets</h2><span class="eyebrow">By society</span></div>'+board(csItems)+'</section>'+
     '</div></div>';
+}
+function pwBoard(){
+  var L=potws(),cnt={};L.forEach(function(a){var kk=a.soc+'|'+nk(a.player);cnt[kk]=(cnt[kk]||0)+1});
+  return '<section class="panel potw"><div class="panel-h"><h2>Player of the Week</h2><span class="eyebrow">Every Friday</span></div>'+
+    (L.length?'<ol class="lb pw-lb">'+L.map(function(a){var s=soc(a.soc),n=cnt[a.soc+'|'+nk(a.player)],ct=critTxt(a.crit);
+      return '<li><span class="rk">'+esc(dayMon(pwDate(a)))+'</span>'+flag(s)+'<span class="who"><span class="n">'+esc(a.player)+'</span><span class="s">'+esc(s.name)+(ct.length?' · '+ct.join(', '):'')+'</span></span><span class="v" title="'+n+' award'+(n===1?'':'s')+'">'+(n>1?'×'+n:'')+'</span></li>'}).join('')+'</ol>'
+    :'<p class="empty">No winners yet. One player is picked at the end of each Friday.</p>')+'<div class="foot">'+CRIT_TXT+'</div></section>';
 }
 function vSocieties(){
   var t=table(),ppl=people();
@@ -734,7 +773,7 @@ function vSoc(id){
     '<section class="panel"><div class="sh">'+flag(s,'lg')+'<div class="grow1"><h2 class="big">'+esc(s.full||s.name)+'</h2><div class="eyebrow">'+(r.P?ord(pos+1)+' in the table · '+r.Pts+' pts':'Yet to play')+'</div>'+nx+'</div>'+formPills(r.form)+'</div></section>'+
     '<div class="kpis"><div class="kpi"><div class="v">'+r.P+'</div><div class="s">Played</div></div><div class="kpi"><div class="v">'+r.W+'-'+r.D+'-'+r.L+'</div><div class="s">Won · Drawn · Lost</div></div><div class="kpi"><div class="v">'+r.GF+'</div><div class="s">Goals for</div></div><div class="kpi"><div class="v">'+r.GA+'</div><div class="s">Goals against</div></div></div>'+
     '<section class="panel"><div class="panel-h"><h2>Squad</h2><span class="eyebrow">'+sqLabel(squadL)+'</span></div>'+(squadL.length?'<div class="tw" tabindex="0" role="region" aria-label="'+esc(s.name)+' squad"><table class="lg"><thead><tr><th class="l">Player</th><th class="l">Positions</th><th title="Event days checked in">Events</th><th>Apps</th><th>Goals</th><th>Assists</th><th>POTM</th></tr></thead><tbody>'+
-      squadL.map(function(p){return '<tr><td class="l"><span class="pn">'+esc(p.name)+(p.cap?'<span class="b cap" title="Captain">C</span>':'')+(p.ex?'<span class="tag ex">Example</span>':'')+'</span></td><td class="l">'+ppills(p.pos)+'</td><td>'+(p.here||'<span class="mute">0</span>')+'</td><td>'+p.apps+'</td><td class="pts">'+p.g+'</td><td>'+p.a+'</td><td>'+(p.motm||'<span class="mute">0</span>')+'</td></tr>'}).join('')+'</tbody></table></div><div class="foot">Squads come from sign-ups, matchday check-ins and teamsheets. Events counts the days a player checked in.</div>':'<p class="empty">No players yet. They’ll appear here once the society registers a squad.</p>')+'</section>'+
+      squadL.map(function(p){return '<tr><td class="l"><span class="pn">'+esc(p.name)+(p.cap?'<span class="b cap" title="Captain">C</span>':'')+(p.potw?'<span class="b motm" title="Player of the Week'+(p.potw>1?', '+p.potw+' times':'')+'">★ POTW'+(p.potw>1?' ×'+p.potw:'')+'</span>':'')+(p.ex?'<span class="tag ex">Example</span>':'')+'</span></td><td class="l">'+ppills(p.pos)+'</td><td>'+(p.here||'<span class="mute">0</span>')+'</td><td>'+p.apps+'</td><td class="pts">'+p.g+'</td><td>'+p.a+'</td><td>'+(p.motm||'<span class="mute">0</span>')+'</td></tr>'}).join('')+'</tbody></table></div><div class="foot">Squads come from sign-ups, matchday check-ins and teamsheets. Events counts the days a player checked in.</div>':'<p class="empty">No players yet. They’ll appear here once the society registers a squad.</p>')+'</section>'+
     '<section class="panel"><div class="panel-h"><h2>Matches</h2></div>'+(ms.length?grouped(ms,true):'<p class="empty">No matches yet.</p>')+'</section></div>';
 }
 function sqLabel(L){var ex=L.filter(function(p){return p.ex}).length,n=L.length-ex;return n+' player'+(n===1?'':'s')+(ex?' · '+ex+' example':'')}
@@ -1196,7 +1235,33 @@ function vMatchday(){
     return '<button type="button" class="md-team" data-act="md-open" data-id="'+esc(s.id)+'">'+flag(s,'md')+'<span class="md-tn"><b>'+esc(s.name)+'</b><span class="md-meta">'+n+' of '+d.players.length+' here</span>'+slots(n)+'</span><span class="md-stat '+lab[0]+'">'+esc(lab[1])+'</span></button>';
   }).join('');
   var fxs=S.matches.filter(function(m){return m.date===ev.date}).sort(byDate),fxP=fxs.length?'<section class="panel"><div class="panel-h"><h2>Matches</h2><span class="eyebrow">Open one to kick off and add goals</span></div>'+fxs.map(function(m){return fx(m,ev)}).join('')+'</section>':'';
-  return '<div class="stack">'+head+(socs.length?'<div class="md-grid">'+cards+'</div>':'<p class="empty">No societies on this event yet.</p>')+fxP+'</div>';
+  return '<div class="stack">'+head+(socs.length?'<div class="md-grid">'+cards+'</div>':'<p class="empty">No societies on this event yet.</p>')+fxP+pwPanel(ev)+'</div>';
+}
+var PW=null;
+function pwCands(ev){
+  var by={},order=[];
+  function add(sid,n){n=clean(n,80);var k=nk(n);if(!sid||!k)return;var g=by[sid];if(!g){g=by[sid]={seen:{},names:[]};order.push(sid)}if(!g.seen[k]){g.seen[k]=1;g.names.push(n)}}
+  mdSocs(ev).forEach(function(s){var q=squad(ev.id,s.id);((q&&q.players)||[]).forEach(function(p){add(s.id,full(p))})});
+  S.matches.filter(function(m){return m.date===ev.date}).forEach(function(m){['home','away'].forEach(function(sd){((m.lineups||{})[sd]||[]).forEach(function(n){add(sideSoc(m,sd),n)})})});
+  var a=potwFor(ev.id);if(a)add(a.soc,a.player);
+  return order.map(function(sid){return {soc:soc(sid),names:by[sid].names.sort(function(x,y){return x.localeCompare(y)})}});
+}
+function pwPanel(ev){
+  var a=potwFor(ev.id),h;
+  /* start a fresh draft for a new event, or when someone else saved or removed this night's award */
+  if(!PW||PW.ev!==ev.id||(a&&PW.auto)||(!a&&!PW.open))PW={ev:ev.id,open:!a,auto:!a,sel:a?a.soc+'|'+a.player:'',crit:a?(a.crit||[]).slice():[],why:a?(a.why||''):'',err:''};
+  if(a&&!PW.open){
+    h=potwCard(a)+'<div class="acts potw-acts"><button type="button" class="btn" data-act="pw-edit">Change</button><button type="button" class="linkbtn" data-act="pw-del" data-id="'+esc(ev.id)+'">'+(PEND==='pw-'+ev.id?'Confirm remove':'Remove')+'</button></div>';
+  }else{
+    var C=pwCands(ev);
+    h='<p class="pad hint potw-how">Pick one player at the end of the night. '+CRIT_TXT+'</p><div class="ed">'+(C.length?
+      '<label>Winner<select id="pw-player" data-pw="sel"><option value="">Choose a player</option>'+C.map(function(g){return '<optgroup label="'+esc(g.soc.name)+'">'+g.names.map(function(n){var v=g.soc.id+'|'+n;return '<option value="'+esc(v)+'"'+(v===PW.sel?' selected':'')+'>'+esc(n)+'</option>'}).join('')+'</optgroup>'}).join('')+'</select></label>'+
+      '<div class="lbl-t" id="pw-crit-l">Stood out for (optional)</div><div class="crit-pick" role="group" aria-labelledby="pw-crit-l">'+CRIT.map(function(c){return '<label class="ck"><input type="checkbox" id="pw-c-'+c[0]+'" data-pwc="'+c[0]+'"'+(PW.crit.indexOf(c[0])>=0?' checked':'')+'>'+c[1]+'</label>'}).join('')+'</div>'+
+      '<label style="margin-top:14px">Why they won (optional, shown on the site)<input id="pw-why" data-pw="why" value="'+esc(PW.why)+'" maxlength="140" autocomplete="off"></label>'+
+      '<p class="err" id="pw-err" role="alert">'+esc(PW.err||'')+'</p><div class="acts"><button type="button" class="btn pri" data-act="pw-save"'+(BUSY?' disabled':'')+'>Save award</button>'+(a?'<button type="button" class="btn" data-act="pw-cancel">Cancel</button>':'')+'</div>'
+      :'<p class="hint" style="margin:0">No players for this event yet. Once squads are in, you can pick the winner here.</p>')+'</div>';
+  }
+  return '<section class="panel potw" aria-labelledby="pw-h"><div class="panel-h"><div><h2 id="pw-h">Player of the Week</h2><div class="eyebrow">'+esc(ev.name)+' · '+esc(fmtShort(ev.date))+'</div></div></div>'+h+'</section>';
 }
 function mdAddForm(d){
   var a=MD.add,cands=d.players.filter(function(p){return !d.here[p.id]&&!p.sub});
@@ -1337,7 +1402,7 @@ function focusId(id){var el=document.getElementById(id);if(el){el.focus();if(el.
 /* ---------- events ---------- */
 root.addEventListener('click',function(ev){
   var b=ev.target.closest('[data-act]');if(!b)return;var a=b.getAttribute('data-act'),id=b.getAttribute('data-id');
-  if(['del','clear-ex','soc-del','ev-del','r-reset','q-del','md-rmsub','in-del','adm-del','lv-rmgoal','lv-ft','lv-unko','lv-reopen'].indexOf(a)<0)PEND=null;
+  if(['del','clear-ex','soc-del','ev-del','r-reset','q-del','md-rmsub','in-del','adm-del','lv-rmgoal','lv-ft','lv-unko','lv-reopen','pw-del'].indexOf(a)<0)PEND=null;
   if(a==='new'){startEdit({_new:true,id:uid('m'),date:'',time:'14:00',home:'',away:'',comp:'Friendly',status:'scheduled',venue:''});ED._new=true;render();window.scrollTo(0,0)}
   else if(a==='edit'){startEdit(S.matches.find(function(m){return m.id===id}));render();window.scrollTo(0,0)}
   else if(a==='cancel'){ED=null;render()}
@@ -1358,6 +1423,14 @@ root.addEventListener('click',function(ev){
   else if(a==='ev-save')saveEvent();
   else if(a==='ev-del'){if(PEND==='e-'+id)commit(function(){S.events=events().filter(function(e){return e.id!==id});delete squads()[id]},'Event deleted');else{PEND='e-'+id;render()}}
   else if(a==='ev-fixture'){var e1=evById(id);if(e1){startEdit({id:uid('m'),date:e1.date,time:/^\d{1,2}:\d{2}$/.test(e1.time||'')?e1.time:'',home:'',away:'',comp:'Exhibition',status:'scheduled',venue:e1.venue||''});ED._new=true;render();window.scrollTo(0,0)}}
+  /* player of the week */
+  else if(a==='pw-edit'){if(PW){PW.open=true;render();focusId('pw-player')}}
+  else if(a==='pw-cancel'){PW=null;render()}
+  else if(a==='pw-save'){var W=PW,ev7=W&&evById(W.ev),pe=document.getElementById('pw-err');if(!W||!ev7||BUSY)return;var ix=W.sel.indexOf('|');
+    if(ix<1){W.err='Choose the winner first.';if(pe)pe.textContent=W.err;return}
+    var aw={ev:ev7.id,date:ev7.date,soc:W.sel.slice(0,ix),player:clean(W.sel.slice(ix+1),80),crit:CRIT.map(function(c){return c[0]}).filter(function(c){return W.crit.indexOf(c)>=0}),why:clean(W.why,140)};
+    commit(function(){S.potw=(S.potw||[]).filter(function(x){return x&&x.ev!==aw.ev});S.potw.push(aw)},'Player of the Week saved: '+aw.player,function(){PW=null})}
+  else if(a==='pw-del'){if(PEND==='pw-'+id)commit(function(){S.potw=(S.potw||[]).filter(function(x){return x&&x.ev!==id})},'Award removed',function(){PW=null});else{PEND='pw-'+id;render()}}
   /* running a match live */
   else if(a==='lv-ko'){var t0=Date.now();LV=null;commit(function(){var c=mById(id);c.status='live';c.ko=t0;c.goals=c.goals||[];mergeHere(c,'home');mergeHere(c,'away')},'Kicked off. The match is live')}
   else if(a==='lv-goal'){var m0=S.matches.find(function(x){return x.id===id});if(!m0)return;LV={mid:id,side:b.getAttribute('data-side')==='away'?'away':'home',sel:'',other:'',assist:'',og:false,min:String(liveMin(m0)||''),err:''};render();focusId('lv-player')}
@@ -1455,6 +1528,9 @@ function onField(ev){
   if(ds.md==='event'){if(MD.event!==t.value){MD.event=t.value;MD.team='';MD.d=null;MD.dFor='';MD.add=null;sSet('s','icwc-md-ev',MD.event);render()}return}
   if(ds.ma&&MD.add){MD.add[ds.ma]=t.value;return}
   if(ds.mapos&&MD.add){var A=MD.add,h=A.pos.indexOf(ds.mapos)>=0;if(t.checked&&!h)A.pos=posSort(A.pos.concat([ds.mapos]));else if(!t.checked&&h)A.pos=A.pos.filter(function(x){return x!==ds.mapos});t.parentNode.classList.toggle('on',t.checked);return}
+  /* player of the week form */
+  if(ds.pw&&PW){PW[ds.pw]=t.value;PW.err='';var pe2=document.getElementById('pw-err');if(pe2&&pe2.textContent)pe2.textContent='';return}
+  if(ds.pwc&&PW){var c7=ds.pwc,i7=PW.crit.indexOf(c7);if(t.checked&&i7<0)PW.crit.push(c7);else if(!t.checked&&i7>=0)PW.crit.splice(i7,1);return}
   /* goal form on the match page */
   if(ds.lv&&LV){var k3=ds.lv;
     if(k3==='og'){if(LV.og!==t.checked){LV.og=t.checked;LV.sel='';LV.other='';LV.assist='';LV.err='';render();focusId('lv-og')}return}
@@ -1511,7 +1587,7 @@ function tabsFit(){
   function upd(){nav.classList.toggle('more',nav.scrollLeft+nav.clientWidth<nav.scrollWidth-4)}
   upd();nav.addEventListener('scroll',upd,{passive:true});
 }
-window.addEventListener('hashchange',function(){PEND=null;LV=null;render();window.scrollTo(0,0)});
+window.addEventListener('hashchange',function(){PEND=null;LV=null;PW=null;render();window.scrollTo(0,0)});
 var mdEv=sGet('s','icwc-md-ev');if(typeof mdEv==='string')MD.event=mdEv;
 render();
 boot();
